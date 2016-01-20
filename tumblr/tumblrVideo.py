@@ -153,5 +153,5 @@ class TumblrVideo:
         self.closeDatabase()
 if __name__ == '__main__':
     # logger = logging.getLogger("simpleExample")
-    tumblrVideo = TumblrVideo('hsexh233')
+    tumblrVideo = TumblrVideo('xincyqing')
     tumblrVideo.startDownload(1, 15)
