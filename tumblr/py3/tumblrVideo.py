@@ -115,13 +115,13 @@ class TumblrVideo:
 
     def getVideoUrl(self, url):
         # content = open('2.html', 'r').read()
-        content = self.getContent(url)
+        content = self.getContent(url).decode("utf8")
         result = self.videoUrlRE.findall(content)
         return result
 
     def getLinkUrl(self, page):
         url = "http://{0}.tumblr.com/page/{1}" .format(self.tumblrName, page)
-        content = self.getContent(url)
+        content = self.getContent(url).decode("utf8")
         # content = open("1.htm", "r").read()
 
         result = self.linkUrlRE.findall(content)
