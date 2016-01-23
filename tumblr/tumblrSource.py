@@ -24,8 +24,10 @@ class TumblrVideo:
                 'https': 'socks5://127.0.0.1:7070'
         }
 
-        self.videoUrlRE = re.compile(r'https://www.tumblr.com/video_file/[^"]+')
-        self.linkUrlRE = re.compile(r"https://www.tumblr.com/video/{0}/\d+/\d+/".format(tumblrName))
+        self.getVideoUrl = re.compile(r"https://www.tumblr.com/video/{0}/\d+/\d+/".format(tumblrName)).findall
+        self.getTrueVideoUrl = re.compile(r'https://www.tumblr.com/video_file/[^"]+').findall
+        self.getImageUrl = re.compile(r'src="(http://{0}.tumblr.com/post/[^"]+)'.format(tumblrName)).findall
+        self.getTrueImageUrl = re.compile(r'src="(http://\d+.media.tumblr.com/[^"]+)').findall
 
         self.conn = self.connectDatabase()
 
@@ -40,7 +42,8 @@ class TumblrVideo:
                 os.makedirs(folder)
             conn = sqlite3.connect(TumblrVideo.databaseName)
             cursor = conn.cursor()
-            cursor.execute("create table video(feature varchar(20), time datetime, url varchar(100))")
+            cursor.execute("create table video(feature varchar(20) primary key, time datetime, url varchar(100))")
+            cursor.execute("create table image(feature varchar(20) primary key, time datetime, url varchar(100))")
             cursor.close()
             conn.commit()
             return conn
@@ -62,34 +65,30 @@ class TumblrVideo:
             return ""
         return html.content
 
-    def checkUrl(self, feature):
+    def checkUrl(self, feature, urlType = "video"):
         cursor = self.conn.cursor()
-        cursor.execute("select feature, time from video where feature = ?", (feature,))
+        if urlType == "video":
+            cursor.execute("select feature, time from video where feature = ?", (feature,))
+        elif urlType == "image":
+            cursor.execute("select feature, time from image where feature = ?", (feature,))
         results = cursor.fetchall()
         cursor.close()
         if not results:
             return None
         return results[0]
 
-    def saveToDB(self, feature, url):
+    def saveToDB(self, feature, url, fileType = "video"):
         cursor = self.conn.cursor()
-        cursor.execute("insert into video(feature, time, url) \
+        if fileType == "video":
+            cursor.execute("insert into video (feature, time, url) \
+                values(?, datetime('now'), ?)", (feature, url))
+        elif fileType == "image":
+            cursor.execute("insert into image (feature, time, url) \
                 values(?, datetime('now'), ?)", (feature, url))
         cursor.close()
         self.conn.commit()
 
-    def setUrl(self, feature, url):
-        cursor = self.conn.cursor()
-        cursor.execute("select url from video where feature = ?", (feature,))
-        results = cursor.fetchall()
-        if not results[0][0]:
-            cursor.execute("update video set url = ? where feature = ?", (url, feature))
-            print "set this url to database"
-        cursor.close()
-        self.conn.commit()
-
     def saveVideo(self, url, fileName=None):
-# get the feature of url
         urlSplit = url.split('/')
         if(len(urlSplit) < 2):
             print " format error:", url
@@ -100,13 +99,11 @@ class TumblrVideo:
                 break
 
         if not fileName:
-            fileName = self.tumblrName + '/' + feature + '.mp4'
+            fileName = self.tumblrName + '/video/' + feature + '.mp4'
 
         result = self.checkUrl(feature)
         if result:
-            print url
-            print fileName, "was downloaded in", result[1]
-            self.setUrl(feature, url)
+            print fileName, " was downloaded in ", result[1]
             return True
 
         video = self.getContent(url)
@@ -117,41 +114,70 @@ class TumblrVideo:
 
             self.saveToDB(feature, url)
 
-            print fileName + " save succeed."
+            print fileName, "save succeed."
             return True
         else:
-           print fileName, "save failed."
+           print fileName, "download failed."
            return False
 
-    def getVideoUrl(self, url):
-        # content = open('2.html', 'r').read()
-        content = self.getContent(url)
-        result = self.videoUrlRE.findall(content)
-        return result
+    def saveImage(self, imageUrl):
+        fileName = imageUrl.rsplit("/", 1)[1]
+        feature = fileName.split('.')[0]
+        fileName = self.tumblrName + "/image/" + fileName
 
-    def getLinkUrl(self, page):
-        url = "http://{0}.tumblr.com/page/{1}" .format(self.tumblrName, page)
-        content = self.getContent(url)
-        # content = open("1.htm", "r").read()
+        result = self.checkUrl(feature, urlType = "image")
+        if result:
+            print fileName, "was downloaded in ",result[1]
+            return True
+        image = self.getContent(imageUrl)
+        if image:
+            f = open(fileName, "wb")
+            f.write(image)
+            f.close()
+            
+            self.saveToDB(feature, imageUrl, fileType = "image")
 
-        result = self.linkUrlRE.findall(content)
-        return result
+            print fileName, "save succeed"
+            return True
+        else:
+            print fileName, "download failed"
+            return False
 
     def startDownload(self, startPage=1, endPage=1):
         folder = self.tumblrName + "/"
 
         if not os.path.exists(folder):
             os.mkdir(folder)
+        if not os.path.exists(folder + "/video"):
+            os.mkdir(folder + "/video")
+        if not os.path.exists(folder + "/image"):
+            os.mkdir(folder + "/image")
         for page in range(startPage, endPage + 1):
-            linkUrls =  self.getLinkUrl(page)
-            for linkUrl in linkUrls:
-                url = self.getVideoUrl(linkUrl)
-                if len(url) == 0:
+            url = "http://{0}.tumblr.com/page/{1}" .format(self.tumblrName, page)
+            content = self.getContent(url)
+
+            videoUrls =  self.getVideoUrl(content)
+            imgUrls = self.getImageUrl(content)
+
+            for videoUrl in videoUrls:
+                content = self.getContent(videoUrl)
+                trueVideoUrl = self.getTrueVideoUrl(content)
+                if not trueVideoUrl:
+                    print("Can't find true video url")
                     continue
-                url = url[0]
-                self.saveVideo(url)
+                trueVideoUrl = trueVideoUrl[0]
+                self.saveVideo(trueVideoUrl)
+
+            for imgUrl in imgUrls:
+                content = self.getContent(imgUrl)
+                trueImageUrl = self.getTrueImageUrl(content)
+                if not trueImageUrl:
+                    print("Can't find true image url")
+                    continue
+                trueImageUrl = trueImageUrl[0]
+                self.saveImage(trueImageUrl)
         self.closeDatabase()
 if __name__ == '__main__':
     # logger = logging.getLogger("simpleExample")
     tumblrVideo = TumblrVideo('xincyqing')
-    tumblrVideo.startDownload(1, 15)
+    tumblrVideo.startDownload(1, 2)
