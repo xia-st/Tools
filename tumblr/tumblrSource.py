@@ -170,12 +170,12 @@ class TumblrVideo:
 
             for imgUrl in imgUrls:
                 content = self.getContent(imgUrl)
-                trueImageUrl = self.getTrueImageUrl(content)
-                if not trueImageUrl:
+                trueImageUrls = self.getTrueImageUrl(content)
+                if not trueImageUrls:
                     print("Can't find true image url")
                     continue
-                trueImageUrl = trueImageUrl[0]
-                self.saveImage(trueImageUrl)
+                for trueImageUrl in trueImageUrls:
+                    self.saveImage(trueImageUrl)
         self.closeDatabase()
 if __name__ == '__main__':
     # logger = logging.getLogger("simpleExample")
