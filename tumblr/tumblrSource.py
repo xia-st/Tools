@@ -27,7 +27,7 @@ class TumblrVideo:
         self.getVideoUrl = re.compile(r"https://www.tumblr.com/video/{0}/\d+/\d+/".format(tumblrName)).findall
         self.getTrueVideoUrl = re.compile(r'https://www.tumblr.com/video_file/[^"]+').findall
         self.getImageUrl = re.compile(r'src="(http://{0}.tumblr.com/post/[^"]+)'.format(tumblrName)).findall
-        self.getTrueImageUrl = re.compile(r'src="(http://\d+.media.tumblr.com/[^"]+)').findall
+        self.getTrueImageUrl = re.compile(r'href="(http://\d+.media.tumblr.com/[^"]+)').findall
 
         self.conn = self.connectDatabase()
 
