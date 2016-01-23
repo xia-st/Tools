@@ -103,6 +103,7 @@ class TumblrVideo:
 
         result = self.checkUrl(feature)
         if result:
+            print url
             print fileName, " was downloaded in ", result[1]
             return True
 
