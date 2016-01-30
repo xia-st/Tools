@@ -1,188 +1,154 @@
-#!/usr/bin/env python
-# -*- encoding:utf-8 -*-
+#!/usr/bin/env python3
 
-import urllib
-import urllib2
-import json
-import codecs
-import re
-from Tkinter import *
-import socket
-import os
-import threading
-import sys
 import requests
+import configparser
+from PyQt5.QtWidgets import QWidget, QLabel, QApplication, \
+        QVBoxLayout, QLineEdit, QPushButton
+from PyQt5 import QtCore
+import hashlib
+import random
+import json
+import sys
+import os
 import keylogger
+import threading
 
-URL = "http://translate.google.cn/translate_a/single?client=t&sl=en&tl=zh-CN&hl=zh-CN&dt=bd&dt=ex&dt=ld&dt=md&dt=qca&dt=rw&dt=rm&dt=ss&dt=t&dt=at&ie=UTF-8&oe=UTF-8&otf=1&ssel=0&tsel=0&kc=5&tk=522736|742654&q="
 
-FILENAME = ".translator.opened"
+class Translator(object):
+    URL = 'http://api.fanyi.baidu.com/api/trans/vip/translate'
+    Lang = ['auto', 'zh', 'en', 'yue', 'wyw', 'jp',
+            'kor', 'fra', 'spa', 'th', 'ara', 'ru',
+            'pt', 'de', 'it', 'el', 'nl', 'pl',
+            'bul', 'est', 'dan', 'fin', 'cs', 'rom',
+            'slo', 'swe', 'hu', 'cht']
 
-def cur_file_dir():
-    path = sys.path[0]
-    
-    if os.path.isdir(path):
-        return path
-    elif os.path.isfile(path):
-        return os.path.dirname(path)
+    def __init__(self, fromLang, toLang):
+        self.setfromLang(fromLang)
+        self.setToLang(toLang)
+        self.__getConfig()
 
-class Application(Frame):
-    def __init__(self, master=None):
-        Frame.__init__(self, master)
-        self.path = cur_file_dir()
-        self.pack()
-        self.closed = False
-        self.master = master
+    def __getConfig(self):
+        conf = configparser.ConfigParser()
+        direction = os.path.realpath(__file__)
+        direction = direction.rsplit('/', 1)[0]
+        print(direction)
+        conf.read(direction + '/appid.conf')
+        self.appid = conf['DEFAULT']['appid']
+        self.keys = conf['DEFAULT']['keys']
 
-        self.master.protocol("WM_DELETE_WINDOW", self.quit)
+    def setfromLang(self, fromLang):
+        if fromLang not in Translator.Lang:
+            print("Not define", fromLang, "as source language")
+            raise IOError
+        self.fromLang = fromLang
 
-        self.createWidgets()
-        self.master.title('translator')
+    def setToLang(self, toLang):
+        if toLang == 'auto' or toLang not in Translator.Lang:
+            print("Not define", toLang, "as result language")
+            raise IOError
+        self.toLang = toLang
 
-        t = threading.Thread(target=self.key_detect, name="keyloggerThread")
+    def __encrypt(self, salt, q):
+        sign = self.appid + q + salt + self.keys
+        m1 = hashlib.md5()
+        m1.update(sign.encode("utf-8"))
+        return m1.hexdigest()
+
+    def __getJson(self, q):
+        salt = str(random.randint(32768, 65536))
+        sign = self.__encrypt(salt, q)
+
+        msg = {
+                'appid': self.appid,
+                'q': q,
+                'from': self.fromLang,
+                'to': self.toLang,
+                'salt': salt,
+                'sign': sign
+        }
+        try:
+            response = requests.post(Translator.URL, data=msg)
+            content = response.content
+            response.close()
+            return content
+        except Exception as e:
+            print(e)
+
+    def translate(self, q):
+        results = self.__getJson(q)
+        results = json.loads(results.decode('utf8'))
+        if 'error_code' in results.keys():
+            return 'error_code: ' + results['error_code'] + \
+                    '\nerror_msg: ' + results['error_msg']
+        resultLang = '\n'.join(
+                (result['dst'] for result in results['trans_result'])
+        )
+        return resultLang
+
+
+class MyWindow(QWidget):
+    trans = Translator("en", "zh")
+
+    def __init__(self):
+        super(MyWindow, self).__init__()
+
+        self.closed = False  # for keylogger
+        self.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)
+        self.adjustSize()
+        self.setWindowTitle("快速翻译工具")
+
+        self.label = QLabel("<center>请输入单词</center>")
+        self.label.setWordWrap(True)
+        self.label.adjustSize()
+
+        self.edit = QLineEdit()
+        self.edit.returnPressed.connect(self.translateByInput)
+
+        self.button = QPushButton("翻译")
+        self.button.clicked.connect(self.translateByInput)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.label)
+        layout.addWidget(self.edit)
+        layout.addWidget(self.button)
+
+        t = threading.Thread(target=self.key_detect)
         t.start()
 
-        # t = threading.Thread(target=self.startServer, name='serverThread')
-        # t.start()
-        # self.after(5, self.startServer)
+    def closeEvent(self, event):
+        self.closed = True
+        event.accept()
 
-    def done(self):
-        return self.closed
+    def translateByInput(self):
+        text = self.edit.text()
+        if not text:
+            self.label.setText("<center>请输入单词</center>")
+            return
+        self.translate(text)
+
+    def translateByClipboard(self):
+        cmd = "xclip -o"
+        text = os.popen(cmd).read().strip()
+        if not text:
+            self.label.setText("<center>剪切板内无数据</center>")
+            return
+        self.translate(text)
+
+    def translate(self, text):
+        self.label.setText("翻译中。。。")
+        self.label.setText(MyWindow.trans.translate(text))
 
     def key_detect(self):
-        def dealKeyCallBack(t, modifiers, keys):
-            if((modifiers['left shift'] or modifiers['right shift'])
-                    and keys == "<esc>"):
-                self.startTrans()
-        keylogger.log(self.done, dealKeyCallBack)
+        def __detectKey(t, modifiers, keys):
+            if (modifiers['left shift'] or modifiers['right shift']) \
+                    and keys == '<esc>':
+                self.translateByClipboard()
+        keylogger.log(lambda: self.closed, __detectKey)
 
 
-    def createWidgets(self):
-        self.transLabel = Label(self, text='translator label', width = 50,
-                wraplength = 300, justify = 'left')
-        self.transLabel.pack()
-
-        self.entrythingy = Entry(self)
-        self.entrythingy.pack()
-
-        self.content = StringVar()
-        self.content.set("input words in here")
-        self.entrythingy.config(textvariable=self.content)
-        self.entrythingy.bind('<Key-Return>', self.translateFromEntry)
-
-        self.quitButton = Button(self, text='Quit', command=self.quit)
-        self.quitButton.pack()
-
-    def translateFromEntry(self, event):
-        text = self.content.get()
-        if(not text):
-            self.changeLabel('输入框中无内容')
-            return
-        self.changeLabel('翻译中...')
-        trans = self.translate(text)
-        if trans:
-            self.changeLabel(trans + '\n' + text)
-
-    def changeLabel(self, text):
-        self.transLabel['text'] = text
-    
-    def quit(self):
-        global FILENAME
-        if os.path.exists(FILENAME):
-            os.remove(FILENAME)
-        self.closed = True
-        self.tk.quit()
-
-    def startTrans(self):
-        text = self.getTextFromXclip()
-        self.master.wm_attributes('-topmost', 1)
-        self.master.wm_attributes('-topmost', 0)
-        if(not text):
-            self.changeLabel('剪贴板内无内容')
-            return
-        self.changeLabel('翻译中...')
-        trans = self.translate(text)
-        if trans:
-            self.changeLabel(trans + '\n' + text)
-
-    # def startServer(self):
-    #     try:
-    #         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #         self.s.bind(('127.0.0.1', 2333))
-    #     except socket.error, e:
-    #         self.changeLabel('无法开启服务: ' + 
-    #                 str(e) + '\n' +
-    #                 '点击左上角叉号关闭')
-    #         self.s.close()
-    #         return
-    #     self.s.listen(1)
-    #     while(True):
-    #         sock, addr = self.s.accept()
-    #         data = sock.recv(20)
-    #         sock.close()
-    #         if data == 'trans':
-    #             text = self.getTextFromXclip()
-    #             if(not text):
-    #                 self.changeLabel('剪贴板内无内容')
-    #                 continue
-    #             self.changeLabel('翻译中...')
-    #             trans = self.translate(text)
-    #             if trans:
-    #                 self.changeLabel(trans + '\n' + text)
-    #         elif data == 'exit':
-    #             self.s.close()
-    #             break
-
-    def getTextFromXclip(self):
-        cmd = "xclip -o"
-        text = os.popen(cmd)
-        return text.read()
-
-    def translate(self, orginalText):
-        transUrl = URL + orginalText.replace(' ', '%20')
-
-        headers = {
-            #'Host': 'translate.google.cn',
-            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:40.0) Gecko/20100101 Firefox/40.0',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3',
-            'Referer': 'http://translate.google.cn/',
-            #'Cookie': '_ga=GA1.3.1555123562.1434506244',
-            'Connection': 'keep-alive'
-        }
-
-        try:
-            req = requests.get(transUrl, headers=headers, timeout = 5)
-        except requests.exceptions.Timeout, e:
-            self.changeLabel('连接超时，请稍后重试' + str(e))
-            return False
-        resultJson = req.text
-        resultJson = re.sub(r'(?<=,)\s*,', ' null,', resultJson)
-        resultJson = resultJson.replace('[,', '[null ,')
-        resultObj = json.loads(resultJson, encoding="utf8")
-        trans = resultObj[0]
-        text = [];
-        if(not trans):
-            self.changeLabel("无翻译结果")
-            return False
-        for tran in trans:
-            if tran[0]:
-                text.append(tran[0])
-        text = ''.join(text)
-
-        #save new word in text
-        f = open(self.path + '/newWord.txt', 'a')
-        f.write(orginalText + ': ' + 
-                text.encode('utf8') + '\n')
-        f.close()
-
-        return text
-    
 if __name__ == '__main__':
-    if not os.path.exists(FILENAME):
-        f = open(FILENAME, 'w')
-        f.write("opened")
-        f.close()
-        root = Tk()
-        app = Application(root)
-        app.mainloop()
+    app = QApplication(sys.argv)
+    window = MyWindow()
+    window.show()
+
+    sys.exit(app.exec_())

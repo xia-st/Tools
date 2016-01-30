@@ -12,10 +12,10 @@
 #       names of its contributors may be used to endorse or promote products
 #       derived from this software without specific prior written permission.
 
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
 # DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
 # (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
 # LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
@@ -44,14 +44,14 @@ keyboard = (ct.c_char * 32)()
 
 # these are the locations (byte, byte value) of special
 # keys to watch
-shift_keys = ((6,4), (7,64))
+shift_keys = ((6, 4), (7, 64))
 modifiers = {
-    "left shift": (6,4),
-    "right shift": (7,64),
-    "left ctrl": (4,32),
-    "right ctrl": (13,2),
-    "left alt": (8,1),
-    "right alt": (13,16)
+    "left shift": (6, 4),
+    "right shift": (7, 64),
+    "left ctrl": (4, 32),
+    "right ctrl": (13, 2),
+    "left alt": (8, 1),
+    "right alt": (13, 16)
 }
 last_pressed = set()
 last_pressed_adjusted = set()
@@ -157,7 +157,7 @@ def fetch_keys():
 
     # check modifier states (ctrl, alt, shift keys)
     modifier_state = {}
-    for mod, (i, byte) in modifiers.iteritems():
+    for mod, (i, byte) in modifiers.items():
         modifier_state[mod] = bool(ord(keypresses_raw[i]) & byte)
     
     # shift pressed?
@@ -176,7 +176,7 @@ def fetch_keys():
     for i, k in enumerate(keypresses_raw):
         o = ord(k)
         if o:
-            for byte,key in key_mapping.get(i, {}).iteritems():
+            for byte,key in key_mapping.get(i, {}).items():
                 if byte & o:
                     if isinstance(key, tuple): key = key[shift or caps_lock_state]
                     pressed.append(key)
@@ -212,6 +212,6 @@ def log(done, callback, sleep_interval=.005):
 if __name__ == "__main__":
     now = time()
     done = lambda: time() > now + 60
-    def print_keys(t, modifiers, keys): print "%.2f   %r   %r" % (t, keys, modifiers)
+    def print_keys(t, modifiers, keys): print("%.2f   %r   %r" % (t, keys, modifiers))
 
     log(done, print_keys)
