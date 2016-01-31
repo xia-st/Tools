@@ -136,7 +136,7 @@ class MyWindow(QWidget):
 
     def translate(self, text):
         self.label.setText("翻译中。。。")
-        self.label.setText(MyWindow.trans.translate(text))
+        self.label.setText(MyWindow.trans.translate(text) + '\n' + text)
 
     def key_detect(self):
         def __detectKey(t, modifiers, keys):
