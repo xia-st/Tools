@@ -5,18 +5,19 @@ import logging.config
 import os
 import sqlite3
 
+
 class TumblrVideo:
     databaseName = "db/url.db"
+
     def __init__(self, tumblrName, isProxies=False):
         self.tumblrName = tumblrName
         self.isProxies = isProxies
 
-        self.headers = { #'Host': 'translate.google.cn',
+        self.headers = {
             'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:40.0) Gecko/20100101 Firefox/40.0',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3',
             'Referer': 'http://translate.google.cn/',
-            #'Cookie': '_ga=GA1.3.1555123562.1434506244',
             'Connection': 'keep-alive'
         }
         self.proxies = {
@@ -37,7 +38,7 @@ class TumblrVideo:
         else:
             index = TumblrVideo.databaseName.rfind('/')
             folder, trueName = TumblrVideo.databaseName.rsplit('/', 1)
-            print folder, trueName
+            print(folder, trueName)
             if not os.path.exists(folder):
                 os.makedirs(folder)
             conn = sqlite3.connect(TumblrVideo.databaseName)
@@ -53,7 +54,7 @@ class TumblrVideo:
             self.conn.close()
 
     def getContent(self, url, timeout=180):
-        print url
+        print(url)
         s = requests.Session()
         try:
             if self.isProxies:
@@ -61,11 +62,11 @@ class TumblrVideo:
             else:
                 html = s.get(url, headers=self.headers, timeout=timeout)
         except Exception, e:
-            print "Exception:", e
+            print("Exception:", e)
             return ""
         return html.content
 
-    def checkUrl(self, feature, urlType = "video"):
+    def checkUrl(self, feature, urlType="video"):
         cursor = self.conn.cursor()
         if urlType == "video":
             cursor.execute("select feature, time from video where feature = ?", (feature,))
@@ -77,7 +78,7 @@ class TumblrVideo:
             return None
         return results[0]
 
-    def saveToDB(self, feature, url, fileType = "video"):
+    def saveToDB(self, feature, url, fileType="video"):
         cursor = self.conn.cursor()
         if fileType == "video":
             cursor.execute("insert into video (feature, time, url) \
@@ -126,7 +127,7 @@ class TumblrVideo:
         feature = fileName.split('.')[0]
         fileName = self.tumblrName + "/image/" + fileName
 
-        result = self.checkUrl(feature, urlType = "image")
+        result = self.checkUrl(feature, urlType="image")
         if result:
             print imageUrl
             print fileName, "was downloaded in ",result[1]
@@ -136,8 +137,7 @@ class TumblrVideo:
             f = open(fileName, "wb")
             f.write(image)
             f.close()
-            
-            self.saveToDB(feature, imageUrl, fileType = "image")
+            self.saveToDB(feature, imageUrl, fileType="image")
 
             print fileName, "save succeed"
             return True
@@ -158,8 +158,9 @@ class TumblrVideo:
             url = "http://{0}.tumblr.com/page/{1}" .format(self.tumblrName, page)
             content = self.getContent(url)
 
-            videoUrls =  self.getVideoUrl(content)
+            videoUrls = self.getVideoUrl(content)
             imgUrls = self.getImageUrl(content)
+            trueImageUrls = self.getTrueImageUrl(content)
 
             for videoUrl in videoUrls:
                 content = self.getContent(videoUrl)
@@ -169,6 +170,9 @@ class TumblrVideo:
                     continue
                 trueVideoUrl = trueVideoUrl[0]
                 self.saveVideo(trueVideoUrl)
+
+            for trueImageUrl in trueImageUrls:
+                self.saveImage(trueImageUrl)
 
             for imgUrl in imgUrls:
                 content = self.getContent(imgUrl)
