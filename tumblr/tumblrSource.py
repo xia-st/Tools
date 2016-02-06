@@ -4,6 +4,7 @@ import logging
 import logging.config
 import os
 import sqlite3
+import sys
 
 
 class TumblrVideo:
@@ -183,7 +184,38 @@ class TumblrVideo:
                 for trueImageUrl in trueImageUrls:
                     self.saveImage(trueImageUrl)
         self.closeDatabase()
+
+
+def usage():
+    return 'Usage: python {0} tumblrName [-p s,e]'.format(sys.argv[0])
+
 if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print(usage())
+        sys.exit()
+    tumblrName = sys.argv[1]
+
+    start = 1
+    end = 15
+
+    if len(sys.argv) > 2:
+        if sys.argv[2] != '-p':
+            print(usage())
+            sys.exit()
+        para = sys.argv[3]
+        if para.find(',') < 0:
+            print(usage())
+            sys.exit()
+        start, end = para.split(',', 1)
+        if (not start.isdigit()) or (not end.isdigit()):
+            print(usage())
+            sys.exit()
+        start = int(start)
+        end = int(end)
+        if start <= 0 or end < start:
+            print(usage())
+            sys.exit()
+
     # logger = logging.getLogger("simpleExample")
-    tumblrVideo = TumblrVideo('xincyqing')
-    tumblrVideo.startDownload(1, 2)
+    tumblrVideo = TumblrVideo(tumblrName)
+    tumblrVideo.startDownload(start, end)
