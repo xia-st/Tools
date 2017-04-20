@@ -6,7 +6,7 @@ import sys
 
 
 class TumblrVideo:
-    databaseName = 'db/url.db'
+    databaseName = "db/url.db"
 
     def __init__(self, tumblrName):
         self.tumblrName = tumblrName
@@ -22,16 +22,16 @@ class TumblrVideo:
         }
 
         self.getVideoUrl = re.compile(
-                r'https://www.tumblr.com/video/{0}/\d+/\d+/'.format(tumblrName)
+                r"https://www.tumblr.com/video/{0}/\d+/\d+/".format(tumblrName)
                 ).findall
         self.getTrueVideoUrl = re.compile(
-                r'https://www.tumblr.com/video_file/[^"]+'
+                r'https://[a-zA-Z0-9_-]+.tumblr.com/video_file/[^"]+'
                 ).findall
         self.getImageUrl = re.compile(
-                r'src="(http://{0}.tumblr.com/post/[^"]+)'.format(tumblrName)
+                r'src="(https://{0}.tumblr.com/post/[^"]+)'.format(tumblrName)
                 ).findall
         self.getTrueImageUrl = re.compile(
-                r'href="(http://\d+.media.tumblr.com/[^"]+)'
+                r'href="(https://\d+.media.tumblr.com/[^"]+)'
                 ).findall
 
         self.conn = self.connectDatabase()
@@ -46,10 +46,10 @@ class TumblrVideo:
                 os.makedirs(folder)
             conn = sqlite3.connect(TumblrVideo.databaseName)
             cursor = conn.cursor()
-            cursor.execute('create table video(feature varchar(20) primary key,\
-                    time datetime, url varchar(100))')
-            cursor.execute('create table image(feature varchar(20) primary key,\
-                    time datetime, url varchar(100))')
+            cursor.execute("create table video(feature varchar(20) primary key,\
+                    time datetime, url varchar(100))")
+            cursor.execute("create table image(feature varchar(20) primary key,\
+                    time datetime, url varchar(100))")
             cursor.close()
             conn.commit()
             return conn
@@ -64,30 +64,30 @@ class TumblrVideo:
         try:
             html = s.get(url, headers=self.headers, timeout=timeout)
         except Exception as e:
-            print('Exception:', e)
-            return ''
+            print("Exception:", e)
+            return ""
         return html.content
 
-    def checkUrl(self, feature, urlType='video'):
+    def checkUrl(self, feature, urlType="video"):
         cursor = self.conn.cursor()
-        if urlType == 'video':
-            cursor.execute('select feature, time from video\
-                    where feature = ?', (feature,))
-        elif urlType == 'image':
-            cursor.execute('select feature, time from image\
-                    where feature = ?', (feature,))
+        if urlType == "video":
+            cursor.execute("select feature, time from video\
+                    where feature = ?", (feature,))
+        elif urlType == "image":
+            cursor.execute("select feature, time from image\
+                    where feature = ?", (feature,))
         results = cursor.fetchall()
         cursor.close()
         if not results:
             return None
         return results[0]
 
-    def saveToDB(self, feature, url, fileType='video'):
+    def saveToDB(self, feature, url, fileType="video"):
         cursor = self.conn.cursor()
-        if fileType == 'video':
+        if fileType == "video":
             cursor.execute("insert into video (feature, time, url) \
                 values(?, datetime('now'), ?)", (feature, url))
-        elif fileType == 'image':
+        elif fileType == "image":
             cursor.execute("insert into image (feature, time, url) \
                 values(?, datetime('now'), ?)", (feature, url))
         cursor.close()
@@ -96,7 +96,7 @@ class TumblrVideo:
     def saveVideo(self, url, fileName=None):
         urlSplit = url.split('/')
         if(len(urlSplit) < 2):
-            print('format error:', url)
+            print(" format error:", url)
             return False
         for u in urlSplit[::-1]:
             if not u.isdigit():
@@ -109,69 +109,74 @@ class TumblrVideo:
         result = self.checkUrl(feature)
         if result:
             print(url)
-            print(fileName, ' was downloaded in ', result[1])
+            print(fileName, " was downloaded in ", result[1])
             return True
 
         video = self.getContent(url)
         if video:
-            f = open(fileName, 'wb')
+            f = open(fileName, "wb")
             f.write(video)
             f.close()
 
             self.saveToDB(feature, url)
 
-            print(fileName, 'save succeed.')
+            print(fileName, "save succeed.")
             return True
         else:
-            print(fileName, 'download failed.')
+            print(fileName, "download failed.")
             return False
 
     def saveImage(self, imageUrl):
-        fileName = imageUrl.rsplit('/', 1)[1]
+        fileName = imageUrl.rsplit("/", 1)[1]
         feature = fileName.split('.')[0]
-        fileName = self.tumblrName + '/image/' + fileName
+        fileName = self.tumblrName + "/image/" + fileName
 
-        result = self.checkUrl(feature, urlType='image')
+        result = self.checkUrl(feature, urlType="image")
         if result:
             print(imageUrl)
-            print(fileName, 'was downloaded in', result[1])
+            print(fileName, "was downloaded in ", result[1])
             return True
         image = self.getContent(imageUrl)
         if image:
-            f = open(fileName, 'wb')
+            f = open(fileName, "wb")
             f.write(image)
             f.close()
-            self.saveToDB(feature, imageUrl, fileType='image')
+            self.saveToDB(feature, imageUrl, fileType="image")
 
-            print(fileName, 'save succeed')
+            print(fileName, "save succeed")
             return True
         else:
-            print(fileName, 'download failed')
+            print(fileName, "download failed")
             return False
 
     def startDownload(self, startPage=1, endPage=1):
-        folder = self.tumblrName + '/'
+        folder = self.tumblrName + "/"
 
         if not os.path.exists(folder):
             os.mkdir(folder)
-        if not os.path.exists(folder + '/video'):
-            os.mkdir(folder + '/video')
-        if not os.path.exists(folder + '/image'):
-            os.mkdir(folder + '/image')
+        if not os.path.exists(folder + "/video"):
+            os.mkdir(folder + "/video")
+        if not os.path.exists(folder + "/image"):
+            os.mkdir(folder + "/image")
         for page in range(startPage, endPage + 1):
-            url = 'http://{0}.tumblr.com/page/{1}'\
+            url = "http://{0}.tumblr.com/page/{1}"\
                     .format(self.tumblrName, page)
-            content = self.getContent(url).decode('utf8')
+            content = self.getContent(url).decode("utf8")
+
+            with open('test.html', 'w') as f:
+                f.write(content)
 
             videoUrls = self.getVideoUrl(content)
             imgUrls = self.getImageUrl(content)
             trueImageUrls = self.getTrueImageUrl(content)
 
             for videoUrl in videoUrls:
-                content = self.getContent(videoUrl).decode('utf8')
+                content = self.getContent(videoUrl).decode("utf8")
+
                 trueVideoUrl = self.getTrueVideoUrl(content)
                 if not trueVideoUrl:
-                    print('Can\'t find true video url')
+                    print("Can't find true video url")
+                    sys.exit()
                     continue
                 trueVideoUrl = trueVideoUrl[0]
                 self.saveVideo(trueVideoUrl)
@@ -180,10 +185,10 @@ class TumblrVideo:
                 self.saveImage(trueImageUrl)
 
             for imgUrl in imgUrls:
-                content = self.getContent(imgUrl).decode('utf8')
+                content = self.getContent(imgUrl).decode("utf8")
                 trueImageUrls = self.getTrueImageUrl(content)
                 if not trueImageUrls:
-                    print('Can\'t find true image url')
+                    print("Can't find true image url")
                     continue
                 for trueImageUrl in trueImageUrls:
                     self.saveImage(trueImageUrl)
